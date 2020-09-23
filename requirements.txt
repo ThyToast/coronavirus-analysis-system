@@ -27,7 +27,6 @@ chardet==3.0.4
 chromedriver==2.24.1
 Click==7.0
 cloudpickle==1.2.2
-clyent==1.2.2
 colorama==0.4.1
 comtypes==1.1.7
 dask==2.5.2
