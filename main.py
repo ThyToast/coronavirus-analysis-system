@@ -202,28 +202,47 @@ if page_select == "COVID-19 Cases":
         .drop(['location', 'new_cases_smoothed'], axis=1).reset_index(drop=True)
     df['date'] = df['date'].astype('datetime64[ns]')
     df.columns = ['Date', 'Total Cases', 'New Cases', 'Total Deaths', 'New Deaths']
-    st.write(df)
+
     st.write(" ### New cases as of " + df['Date'][0].strftime("%d %B, %Y"))
+    st.write(" ### **Current statistics:**")
+    st.write("- ### " + df['New Cases'][0].astype(int).astype(str) + " new cases")
+    st.write("- ### " + df['Total Cases'][0].astype(int).astype(str) + " infected in total")
+    st.write("- ### " + df['New Deaths'][0].astype(int).astype(str) + " new deaths")
+    st.write("- ### " + df['Total Deaths'][0].astype(int).astype(str) + " deaths in total")
 
     chart_data = df.set_index("Date")
     cases_type = st.multiselect("Select data to show", ("New Cases", "Total Cases", "New Deaths", "Total Deaths"),
                                 ["New Cases"])
+    data = df.melt('Date', var_name='Case Type', value_name='Number of Cases')
+    kek = data['Case Type'].isin(cases_type)
+    data = data[kek]
+
     if not cases_type:
         st.error("Please select at least one table.")
 
-    chart = st.empty()
+    chart = alt.Chart(data).mark_bar().encode(
+        y='Number of Cases:Q',
+        x='Date:T',
+        color='Case Type:N',
+        tooltip=['Date', 'Case Type', 'Number of Cases']
+    ).properties(
+        width=700,
+        height=500
+    ).interactive()
+    st.altair_chart(chart)
 
-    if 'New Cases' in cases_type:
-        chart = st.bar_chart(chart_data[['New Cases']])
+    # if 'New Cases' in cases_type:
+    #
+    # if 'Total Cases' in cases_type:
+    #     chart = st.bar_chart(chart_data[['Total Cases']])
+    #
+    # if 'New Deaths' in cases_type:
+    #     chart = st.bar_chart(chart_data[['New Deaths']])
+    #
+    # if 'Total Deaths' in cases_type:
+    #     chart = st.bar_chart(chart_data[['Total Deaths']])
 
-    if 'Total Cases' in cases_type:
-        chart = st.bar_chart(chart_data[['Total Cases']])
-
-    if 'New Deaths' in cases_type:
-        chart = st.bar_chart(chart_data[['New Deaths']])
-
-    if 'Total Deaths' in cases_type:
-        chart = st.bar_chart(chart_data[['Total Deaths']])
+    st.write(df)
 
 # when health advice is selected
 if page_select == 'Health Advice':
