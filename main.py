@@ -1,26 +1,13 @@
 import streamlit as st
 import altair as alt
-import datetime
-import js2xml
-import re
-import datetime as dt
-import matplotlib.dates as mdates
-import scipy.stats as stats
-import sklearn
-import time
-import math
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import tweepy
 import re
 import covid_daily
 
 from googletrans import Translator
-from pandas import ExcelWriter
 from textblob import TextBlob
-from pyecharts import options as opts
-from pyecharts.charts import Bar
 from statsmodels.tsa.ar_model import AR
 from statsmodels.tsa.arima_model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
