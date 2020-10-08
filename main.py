@@ -14,22 +14,53 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import tweepy
 import re
+import covid_daily
 
 from googletrans import Translator
 from pandas import ExcelWriter
 from textblob import TextBlob
 from pyecharts import options as opts
 from pyecharts.charts import Bar
-from streamlit_echarts import st_pyecharts
+from statsmodels.tsa.ar_model import AR
+from statsmodels.tsa.arima_model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
 # cached function for fast response
 @st.cache(show_spinner=False)
 def getData():
     with st.spinner(text="Fetching data..."):
+        # data = covid_daily.data(country=country_name, chart='graph-cases-daily', as_json=False)
+        # data2 = covid_daily.data(country=country_name, chart='coronavirus-cases-linear', as_json=False)
+        # data3 = covid_daily.data(country=country_name, chart='graph-active-cases-total', as_json=False)
+        # data4 = covid_daily.data(country=country_name, chart='graph-deaths-daily', as_json=False)
+        # data5 = covid_daily.data(country=country_name, chart='coronavirus-deaths-linear', as_json=False)
+        #
+        # df = pd.DataFrame(data)
+        # df['Total Cases'] = data2
+        # df['Active Cases'] = data3
+        # df['New Deaths'] = data4
+        # df['Total Deaths'] = data5
+
+        # return df
+        # old code
         url = "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv"
         df = pd.DataFrame(data=pd.read_csv(url))
         return df
+
+
+@st.cache(show_spinner=False)
+def getReport(country: str):
+    with st.spinner(text="Fetching data..."):
+        if country == 'United States':
+            country = 'USA'
+        report = covid_daily.overview(as_json=False)
+        report = report[report['Country,Other'] == country]
+        return report
+
+
+def capitalize_list(item):
+    return item.upper()
 
 
 def cleanText(text):
@@ -64,25 +95,72 @@ def getAnalysis(score):
         return 'Positive'
 
 
+@st.cache(show_spinner=False)
 def getTwitterData(userName: str):
-    consumerKey = '2GEG6e2BlCA79Iw1BDZTMcfsm'
-    consumerSecret = 'KbqBsUxLWEhyDCWwUQ5rEyCRB2DDq3MtUsLrpi4WRmMqRmaZ7e'
-    accessToken = '1862224740-JBq4GzpKSYVbWnwWvtU2EcxocA9TNYqjF0SWsed'
-    accessSecret = 'UzTpWyApEQ5UpJIXnVeIPWV8sLoPvnKmDOtzfT9hpOMmO'
+    with st.spinner(text="Fetching data..."):
+        consumerKey = '2GEG6e2BlCA79Iw1BDZTMcfsm'
+        consumerSecret = 'KbqBsUxLWEhyDCWwUQ5rEyCRB2DDq3MtUsLrpi4WRmMqRmaZ7e'
+        accessToken = '1862224740-JBq4GzpKSYVbWnwWvtU2EcxocA9TNYqjF0SWsed'
+        accessSecret = 'UzTpWyApEQ5UpJIXnVeIPWV8sLoPvnKmDOtzfT9hpOMmO'
 
-    authenticate = tweepy.OAuthHandler(consumerKey, consumerSecret)
-    authenticate.set_access_token(accessToken, accessSecret)
-    api = tweepy.API(authenticate, wait_on_rate_limit=True)
+        authenticate = tweepy.OAuthHandler(consumerKey, consumerSecret)
+        authenticate.set_access_token(accessToken, accessSecret)
+        api = tweepy.API(authenticate, wait_on_rate_limit=True)
 
-    posts = api.user_timeline(screen_name=userName, count=100, lang="en", tweet_mode="extended")
-    df_twitter = pd.DataFrame([tweet.full_text for tweet in posts], columns=['Tweets'])
+        posts = api.user_timeline(screen_name=userName, count=100, lang="en", tweet_mode="extended")
+        df_twitter = pd.DataFrame([tweet.full_text for tweet in posts], columns=['Tweets'])
 
-    # Data cleaning & translation
-    df_twitter['Tweets'] = df_twitter['Tweets'].apply(cleanText)
-    df_twitter['Tweets'] = df_twitter['Tweets'].apply(translateText)
-    df_twitter['Subjectivity'] = df_twitter['Tweets'].apply(getSubjectivity)
-    df_twitter['Polarity'] = df_twitter['Tweets'].apply(getPolarity)
-    df_twitter['Analysis'] = df_twitter['Polarity'].apply(getAnalysis)
+        # Data cleaning & translation
+        df_twitter['Tweets'] = df_twitter['Tweets'].apply(cleanText)
+        df_twitter['Tweets'] = df_twitter['Tweets'].apply(translateText)
+        df_twitter['Subjectivity'] = df_twitter['Tweets'].apply(getSubjectivity)
+        df_twitter['Polarity'] = df_twitter['Tweets'].apply(getPolarity)
+        df_twitter['Analysis'] = df_twitter['Polarity'].apply(getAnalysis)
+
+        return df_twitter
+
+
+def forecastDf(df, country: str, index: int):
+    y = df['Total Cases']
+    y = y.astype(np.int)
+    y = np.asanyarray(y)
+
+    df['Case Type'] = "Actual Cases"
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    model_ar_confirmed = ARIMA(y, order=(2, 0, 0))
+    model_fit_ar_confirmed = model_ar_confirmed.fit(disp=False)
+    predict_ar_confirmed = model_fit_ar_confirmed.predict(1, (len(y) + index-1))
+
+    ftr = df.append(pd.DataFrame({'Date': pd.date_range(start=df['Date'].iloc[-1], periods=index, freq='d',
+                                                        closed='right')}))
+    ftr['Total Cases'] = predict_ar_confirmed
+    ftr['Case Type'] = "Forecasted Cases"
+    ftr = ftr.reset_index(drop=True)
+
+    df = df.append(ftr)
+    st.write(ftr)
+    chart = alt.Chart(df).mark_line().encode(
+        y='Total Cases:Q',
+        x='Date:T',
+        color='Case Type:N',
+        tooltip=['Date', 'Case Type', 'Total Cases']
+    ).properties(
+        width=700,
+        height=500
+    ).interactive()
+    st.altair_chart(chart)
+
+    # plt.plot(y, label='Actual Data', color='blue')
+    # plt.plot(predict_ar_confirmed, label='Forecasted unknown data (Future)', color='orange')
+    # plt.plot(predict_ar_confirmed[:len(
+    #     predict_ar_confirmed)-64], label='Forecasted known data (Past/Present)', color='red')
+    #
+    # plt.title('COVID-19 Prediction for ' + country)
+    # plt.xlabel('Time (Days)')
+    # plt.ylabel('No. of Infected')
+    # plt.legend()
+    # plt.show()
 
 
 st.beta_set_page_config(
@@ -107,6 +185,7 @@ st.markdown(
 .Widget>label {
     color: white;
     font-family: 'Open Sans', sans-serif;
+    background-color: #303039;
 }
 .sidebar .sidebar-content h1{
     color: white;
@@ -184,12 +263,36 @@ countries = ['Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Anguilla
              'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Swaziland', 'Sweden', 'Switzerland', 'Syria',
              'Taiwan', 'Tanzania', 'Thailand', 'Timor', 'Togo', 'Trinidad and Tobago', 'Tunisia', 'Turkey',
              'Turks and Caicos Islands', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States',
-             'United States Virgin Islands', 'Uruguay', 'Uzbekistan', 'Vatican', 'Venezuela', 'Vietnam', 'Zambia',
+             'Uruguay', 'Uzbekistan', 'Vatican', 'Venezuela', 'Vietnam', 'Zambia',
              'Zimbabwe']
 
 st.title("Viral Infection Analysis System 🦠😷")
 st.sidebar.title("Menu")
 page_select = st.sidebar.radio("Select page to view", ('COVID-19 Cases', 'COVID-19 Forecast', 'Health Advice'))
+
+# when health advice is selected
+if page_select == 'Health Advice':
+    twitter_user = st.sidebar.selectbox("Select source of health advice", ('Ministry of Health Malaysia',
+                                                                           'World Health Organisation',
+                                                                           'WHO South-East Asia'))
+    st.write(" ## Tweets & reports from the " + twitter_user)
+
+    if twitter_user == 'Ministry of Health Malaysia':
+        twitter_user = 'KKMPutrajaya'
+    if twitter_user == 'World Health Organisation':
+        twitter_user = 'WHO'
+    if twitter_user == 'WHO South-East Asia':
+        twitter_user = 'WHOSEARO'
+    posts = getTwitterData(twitter_user)
+
+    # st.write(posts)
+    j = 1
+
+    sortedDF = posts.sort_values(by=['Polarity'])
+    for i in range(0, sortedDF.shape[0]):
+        if sortedDF['Analysis'][i] == 'Positive':
+            st.write('### ** ' + str(j) + ')  **' + sortedDF['Tweets'][i])
+            j = j + 1
 
 # when covid 19 cases is selected
 if page_select == "COVID-19 Cases":
@@ -202,51 +305,105 @@ if page_select == "COVID-19 Cases":
         .drop(['location', 'new_cases_smoothed'], axis=1).reset_index(drop=True)
     df['date'] = df['date'].astype('datetime64[ns]')
     df.columns = ['Date', 'Total Cases', 'New Cases', 'Total Deaths', 'New Deaths']
+    overview = getReport(country_name)
 
-    st.write(" ### New cases as of " + df['Date'][0].strftime("%d %B, %Y"))
-    st.write(" ### **Current statistics:**")
-    st.write("- ### " + df['New Cases'][0].astype(int).astype(str) + " new cases")
-    st.write("- ### " + df['Total Cases'][0].astype(int).astype(str) + " infected in total")
-    st.write("- ### " + df['New Deaths'][0].astype(int).astype(str) + " new deaths")
-    st.write("- ### " + df['Total Deaths'][0].astype(int).astype(str) + " deaths in total")
+    st.write(" ### Updated as of " + df['Date'][0].strftime("%d %B, %Y"))
+    st.write("### **Current reports: ** \n (source: [worldometers.info]("
+             "https://www.worldometers.info/coronavirus/))")
+    st.write("- ### " + overview['NewCases'].values[0].astype(int).astype(str) + " new cases \n- ### " +
+             overview['ActiveCases'].values[0].astype(int).astype(str) + " active cases \n- ### " +
+             overview['TotalCases'].values[0].astype(int).astype(str) + " infected in total\n- ### " +
+             overview['NewDeaths'].values[0].astype(int).astype(str) + " new deaths\n- ### " +
+             overview['TotalDeaths'].values[0].astype(int).astype(str) + " deaths in total")
 
     chart_data = df.set_index("Date")
     cases_type = st.multiselect("Select data to show", ("New Cases", "Total Cases", "New Deaths", "Total Deaths"),
                                 ["New Cases"])
     data = df.melt('Date', var_name='Case Type', value_name='Number of Cases')
-    kek = data['Case Type'].isin(cases_type)
-    data = data[kek]
+    available = data['Case Type'].isin(cases_type)
+    data = data[available]
 
     if not cases_type:
-        st.error("Please select at least one table.")
+        chart = st.empty
+        st.error("Please select at least one data.")
 
-    chart = alt.Chart(data).mark_bar().encode(
-        y='Number of Cases:Q',
-        x='Date:T',
-        color='Case Type:N',
-        tooltip=['Date', 'Case Type', 'Number of Cases']
-    ).properties(
-        width=700,
-        height=500
-    ).interactive()
-    st.altair_chart(chart)
+    if cases_type:
+        chart = alt.Chart(data).mark_bar().encode(
+            y='Number of Cases:Q',
+            x='Date:T',
+            color='Case Type:N',
+            tooltip=['Date', 'Case Type', 'Number of Cases']
+        ).properties(
+            width=700,
+            height=500
+        ).interactive()
+        st.altair_chart(chart)
 
-    # if 'New Cases' in cases_type:
-    #
-    # if 'Total Cases' in cases_type:
-    #     chart = st.bar_chart(chart_data[['Total Cases']])
-    #
-    # if 'New Deaths' in cases_type:
-    #     chart = st.bar_chart(chart_data[['New Deaths']])
-    #
-    # if 'Total Deaths' in cases_type:
-    #     chart = st.bar_chart(chart_data[['Total Deaths']])
-
+    df = df.set_index("Date")
     st.write(df)
 
-# when health advice is selected
-if page_select == 'Health Advice':
-    twitter_user = st.sidebar.selectbox("Select source of health advice", ('Ministry of Health Malaysia',
-                                                                           'World Health Organisation',
-                                                                           'WHO South-East Asia'))
-    st.write(" ## Health advice & reports from the " + twitter_user)
+# when display forecast is selected
+if page_select == "COVID-19 Forecast":
+    country_name = st.sidebar.selectbox("Select countries 🌎", countries)
+    st.write(" ## Here are the forecasts for COVID-19 in " + country_name)
+    data = getData()
+    df = data[data['location'] == country_name].iloc[:, 2:5].sort_values(by=['date'], ascending=True). \
+        replace(np.nan, 0) \
+        .drop(['location'], axis=1).reset_index(drop=True)
+    df['date'] = df['date'].astype('datetime64[ns]')
+    df.columns = ['Date', 'Total Cases']
+
+    index = st.slider('Select how many days to forecast: ', 1, 365)
+    forecastDf(df, country_name, index)
+
+# when covid 19 cases is selected (data based on worldometers)
+# if page_select == "COVID-19 Cases":
+#     countries = AVAILABLE_COUNTRIES
+#     countries = [country.capitalize() for country in countries]
+#     country_name = st.sidebar.selectbox("Select countries 🌎", countries)
+#     st.write(" ## Here are the latest cases of COVID-19 in " + country_name)
+#
+#     df = getData(country_name)
+#     df = df.sort_values(by=['Date', 'Total Cases'], ascending=False). \
+#         replace(np.nan, 0).rename(columns = {'Novel Coronavirus Daily Cases': 'New Cases'})
+#
+#     overview = getReport(country_name)
+#
+#     day = df.index[0]
+#     day += datetime.timedelta(days=1)
+#     day = day.strftime("%d %B, %Y")
+#
+#     st.write("### **Current reports: ** \n (source: [worldometers.info]("
+#              "https://www.worldometers.info/coronavirus/))")
+#     st.write(" ### Updated as of " + day)
+#     st.write("- ### " + overview['NewCases'].values[0].astype(int).astype(str) + " new cases \n- ### " +
+#              overview['ActiveCases'].values[0].astype(int).astype(str) + " active cases \n- ### " +
+#              overview['TotalCases'].values[0].astype(int).astype(str) + " infected in total\n- ### " +
+#              overview['NewDeaths'].values[0].astype(int).astype(str) + " new deaths\n- ### " +
+#              overview['TotalDeaths'].values[0].astype(int).astype(str) + " deaths in total")
+#
+#     cases_type = st.multiselect("Select data to show", ("New Cases", "Total Cases", "New Deaths", "Total Deaths"),
+#                                 ["New Cases"])
+#     df.reset_index(level=0, inplace=True)
+#     data = df.melt('Date', var_name='Case Type', value_name='Number of Cases')
+#     available = data['Case Type'].isin(cases_type)
+#     data = data[available]
+#
+#     if not cases_type:
+#         chart = st.empty
+#         st.error("Please select at least one data.")
+#
+#     if cases_type:
+#         chart = alt.Chart(data).mark_bar().encode(
+#             y='Number of Cases:Q',
+#             x='Date:T',
+#             color='Case Type:N',
+#             tooltip=['Date', 'Case Type', 'Number of Cases']
+#         ).properties(
+#             width=700,
+#             height=500
+#         ).interactive()
+#         st.altair_chart(chart)
+#
+#     df = df.set_index("Date")
+#     st.write(df)
