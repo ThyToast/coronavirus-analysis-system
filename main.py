@@ -51,12 +51,15 @@ def capitalize_list(item):
 
 
 def cleanText(text):
-    text = re.sub('@[A-Za-z0–9]+:', '', text)
-    text = re.sub('#', '', text)
-    text = re.sub('\+n', '', text)
-    text = re.sub('RT[\s]+', '', text)
-    text = re.sub('https?:\/\/\S+', '', text)
-    text = re.sub('⃣', '', text)
+    text = re.sub('@[A-Za-z0–9]+:', '', text, flags = re.MULTILINE)
+    text = re.sub(r"(?:\@|https?\://)\S+", "", text, flags = re.MULTILINE)
+    text = re.sub('#', '', text, flags = re.MULTILINE)
+    text = re.sub('\+n', '', text, flags = re.MULTILINE)
+    text = re.sub('\n', '', text, flags = re.MULTILINE)
+    text = re.sub('RT[\s]+', '', text, flags = re.MULTILINE)
+    text = re.sub('⃣', '', text, flags = re.MULTILINE)
+    text = re.sub('&amp;', '', text, flags = re.MULTILINE)
+    text = re.sub(' +', ' ', text, flags = re.MULTILINE)
     return text
 
 
@@ -94,7 +97,9 @@ def getTwitterData(userName: str):
         authenticate.set_access_token(accessToken, accessSecret)
         api = tweepy.API(authenticate, wait_on_rate_limit=True)
 
-        posts = api.user_timeline(screen_name=userName, count=100, lang="en", tweet_mode="extended")
+        posts = tweepy.Cursor(api.search, q="COVID-19 from:" + userName, rpp=100, tweet_mode="extended").items()
+
+        # posts = api.user_timeline(screen_name=userName, count=100, lang="en", tweet_mode="extended")
         df_twitter = pd.DataFrame([tweet.full_text for tweet in posts], columns=['Tweets'])
 
         # Data cleaning & translation
@@ -117,7 +122,7 @@ def forecastDf(df, country: str, index: int):
 
     model_ar_confirmed = ARIMA(y, order=(2, 0, 0))
     model_fit_ar_confirmed = model_ar_confirmed.fit(disp=False)
-    predict_ar_confirmed = model_fit_ar_confirmed.predict(1, (len(y) + index-1))
+    predict_ar_confirmed = model_fit_ar_confirmed.predict(1, (len(y) + index - 1))
 
     ftr = df.append(pd.DataFrame({'Date': pd.date_range(start=df['Date'].iloc[-1], periods=index, freq='d',
                                                         closed='right')}))
@@ -201,7 +206,7 @@ st.markdown(
 .st-ae st-af st-ag st-ah st-fn st-f8 st-fl st-fo st-fp{
     color: white !important;
 }
-.st-cy{
+.st-fn{
     color: white !important;
 }
 .st-bn{
@@ -255,11 +260,11 @@ countries = ['Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Anguilla
 
 st.title("Viral Infection Analysis System 🦠😷")
 st.sidebar.title("Menu")
-page_select = st.sidebar.radio("Select page to view", ('COVID-19 Cases', 'COVID-19 Forecast', 'Health Advice'))
+page_select = st.sidebar.radio("Select page to view", ('COVID-19 Cases', 'COVID-19 Forecast', 'Health Advice & Report'))
 
 # when health advice is selected
-if page_select == 'Health Advice':
-    twitter_user = st.sidebar.selectbox("Select source of health advice", ('Ministry of Health Malaysia',
+if page_select == 'Health Advice & Report':
+    twitter_user = st.sidebar.selectbox("Select source of health advice and report", ('Ministry of Health Malaysia',
                                                                            'World Health Organisation',
                                                                            'WHO South-East Asia'))
     st.write(" ## Tweets & reports from the " + twitter_user)
@@ -270,16 +275,19 @@ if page_select == 'Health Advice':
         twitter_user = 'WHO'
     if twitter_user == 'WHO South-East Asia':
         twitter_user = 'WHOSEARO'
-    posts = getTwitterData(twitter_user)
 
+    posts = getTwitterData(twitter_user)
     # st.write(posts)
     j = 1
-
     sortedDF = posts.sort_values(by=['Polarity'])
+    # for i in range(0, sortedDF.shape[0]):
+    #     if sortedDF['Analysis'][i] == 'Positive':
+    #         st.write('### ** ' + str(j) + ')  **' + sortedDF['Tweets'][i])
+    #         j = j + 1
+
     for i in range(0, sortedDF.shape[0]):
-        if sortedDF['Analysis'][i] == 'Positive':
-            st.write('### ** ' + str(j) + ')  **' + sortedDF['Tweets'][i])
-            j = j + 1
+        st.write('### ** ' + str(j) + ')  **' + sortedDF['Tweets'][i])
+        j = j + 1
 
 # when covid 19 cases is selected
 if page_select == "COVID-19 Cases":
