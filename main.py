@@ -8,6 +8,7 @@ import covid_daily
 
 from googletrans import Translator
 from textblob import TextBlob
+from time import sleep
 from statsmodels.tsa.ar_model import AR
 from statsmodels.tsa.arima_model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
@@ -17,20 +18,6 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 @st.cache(show_spinner=False)
 def getData():
     with st.spinner(text="Fetching data..."):
-        # data = covid_daily.data(country=country_name, chart='graph-cases-daily', as_json=False)
-        # data2 = covid_daily.data(country=country_name, chart='coronavirus-cases-linear', as_json=False)
-        # data3 = covid_daily.data(country=country_name, chart='graph-active-cases-total', as_json=False)
-        # data4 = covid_daily.data(country=country_name, chart='graph-deaths-daily', as_json=False)
-        # data5 = covid_daily.data(country=country_name, chart='coronavirus-deaths-linear', as_json=False)
-        #
-        # df = pd.DataFrame(data)
-        # df['Total Cases'] = data2
-        # df['Active Cases'] = data3
-        # df['New Deaths'] = data4
-        # df['Total Deaths'] = data5
-
-        # return df
-        # old code
         url = "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv"
         df = pd.DataFrame(data=pd.read_csv(url))
         return df
@@ -46,26 +33,32 @@ def getReport(country: str):
         return report
 
 
-def capitalize_list(item):
-    return item.upper()
-
-
 def cleanText(text):
-    text = re.sub('@[A-Za-z0–9]+:', '', text, flags = re.MULTILINE)
-    text = re.sub(r"(?:\@|https?\://)\S+", "", text, flags = re.MULTILINE)
-    text = re.sub('#', '', text, flags = re.MULTILINE)
-    text = re.sub('\+n', '', text, flags = re.MULTILINE)
-    text = re.sub('\n', '', text, flags = re.MULTILINE)
-    text = re.sub('RT[\s]+', '', text, flags = re.MULTILINE)
-    text = re.sub('⃣', '', text, flags = re.MULTILINE)
-    text = re.sub('&amp;', '', text, flags = re.MULTILINE)
-    text = re.sub(' +', ' ', text, flags = re.MULTILINE)
+    text = re.sub('@[A-Za-z0–9]+:', '', text, flags=re.MULTILINE)
+    text = re.sub(r"(?:\@|https?\://)\S+", "", text, flags=re.MULTILINE)
+    text = re.sub('#', '', text, flags=re.MULTILINE)
+    text = re.sub('\+n', '', text, flags=re.MULTILINE)
+    text = re.sub('\n', '', text, flags=re.MULTILINE)
+    text = re.sub('RT[\s]+', '', text, flags=re.MULTILINE)
+    text = re.sub('⃣', '', text, flags=re.MULTILINE)
+    text = re.sub('&amp;', '', text, flags=re.MULTILINE)
+    text = re.sub(' +', ' ', text, flags=re.MULTILINE)
     return text
 
 
-def translateText(text):
+@st.cache(show_spinner=False)
+def getTranslate(text):
     translator = Translator()
-    return translator.translate(text).text
+    result = None
+    while result is None:
+        try:
+            result = translator.translate(text).text
+        except Exception as e:
+            print(e)
+            translator = Translator()
+            sleep(0.5)
+            pass
+    return result
 
 
 def getSubjectivity(text):
@@ -104,7 +97,7 @@ def getTwitterData(userName: str):
 
         # Data cleaning & translation
         df_twitter['Tweets'] = df_twitter['Tweets'].apply(cleanText)
-        df_twitter['Tweets'] = df_twitter['Tweets'].apply(translateText)
+        df_twitter['Tweets'] = df_twitter['Tweets'].apply(getTranslate)
         df_twitter['Subjectivity'] = df_twitter['Tweets'].apply(getSubjectivity)
         df_twitter['Polarity'] = df_twitter['Tweets'].apply(getPolarity)
         df_twitter['Analysis'] = df_twitter['Polarity'].apply(getAnalysis)
@@ -265,8 +258,8 @@ page_select = st.sidebar.radio("Select page to view", ('COVID-19 Cases', 'COVID-
 # when health advice is selected
 if page_select == 'Health Advice & Report':
     twitter_user = st.sidebar.selectbox("Select source of health advice and report", ('Ministry of Health Malaysia',
-                                                                           'World Health Organisation',
-                                                                           'WHO South-East Asia'))
+                                                                                      'World Health Organisation',
+                                                                                      'WHO South-East Asia'))
     st.write(" ## Tweets & reports from the " + twitter_user)
 
     if twitter_user == 'Ministry of Health Malaysia':
