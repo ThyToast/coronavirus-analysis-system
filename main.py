@@ -37,12 +37,12 @@ def cleanText(text):
     text = re.sub('@[A-Za-z0–9]+:', '', text, flags=re.MULTILINE)
     text = re.sub(r"(?:\@|https?\://)\S+", "", text, flags=re.MULTILINE)
     text = re.sub('#', '', text, flags=re.MULTILINE)
-    text = re.sub('\+n', '', text, flags=re.MULTILINE)
-    text = re.sub('\n', '', text, flags=re.MULTILINE)
+    # text = re.sub('\+n', '', text, flags=re.MULTILINE)
+    # text = re.sub('\n', '', text, flags=re.MULTILINE)
     text = re.sub('RT[\s]+', '', text, flags=re.MULTILINE)
     text = re.sub('⃣', '', text, flags=re.MULTILINE)
     text = re.sub('&amp;', '', text, flags=re.MULTILINE)
-    text = re.sub(' +', ' ', text, flags=re.MULTILINE)
+    # text = re.sub(' +', ' ', text, flags=re.MULTILINE)
     return text
 
 
