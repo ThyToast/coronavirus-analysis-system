@@ -94,6 +94,7 @@ def getTwitterData(userName: str):
 
         # posts = api.user_timeline(screen_name=userName, count=100, lang="en", tweet_mode="extended")
         df_twitter = pd.DataFrame([tweet.full_text for tweet in posts], columns=['Tweets'])
+        df_twitter = df_twitter.head(20)
 
         # Data cleaning & translation
         df_twitter['Tweets'] = df_twitter['Tweets'].apply(cleanText)
@@ -124,7 +125,6 @@ def forecastDf(df, country: str, index: int):
     ftr = ftr.reset_index(drop=True)
 
     df = df.append(ftr)
-    st.write(ftr)
     chart = alt.Chart(df).mark_line().encode(
         y='Total Cases:Q',
         x='Date:T',
@@ -135,6 +135,8 @@ def forecastDf(df, country: str, index: int):
         height=500
     ).interactive()
     st.altair_chart(chart)
+    st.write(ftr.sort_values(by=['Date'], ascending=False))
+
 
     # plt.plot(y, label='Actual Data', color='blue')
     # plt.plot(predict_ar_confirmed, label='Forecasted unknown data (Future)', color='orange')
@@ -155,73 +157,83 @@ st.beta_set_page_config(
     page_icon="coronavirus.ico",
 )
 
-# CSS Theme
-st.markdown(
-    """
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
-<style>
-.reportview-container .markdown-text-container {
-    font-family: 'Open Sans', sans-serif;
-}
-.sidebar .sidebar-content {
-    background-image: linear-gradient(#303039,#303039);
-    color: #303039;
-}
-.Widget>label {
-    color: white;
-    font-family: 'Open Sans', sans-serif;
-    background-color: #303039;
-}
-.sidebar .sidebar-content h1{
-    color: white;
-}
-[class^="st-b"]  {
-    color: white;
-    font-family: 'Open Sans', sans-serif;
-}
-[class^="st-ae st-fh st-fi st-fj st-c5 st-fk st-fa st-fl st-fm"]  {
-    color: white;
-    font-family: 'Open Sans', sans-serif;
-}
-[class^="st-ae st-af st-ag st-ah st-fn st-f8 st-fl st-fo st-fp"]  {
-    color: white !important;
-    font-family: 'Open Sans', sans-serif;
-}
-.st-bb {
-    background-color: transparent;
-}
-.st-cz {
-    fill: white;
-}
-.st-dr{
-    fill: white;
-}
-.st-ae st-af st-ag st-ah st-fn st-f8 st-fl st-fo st-fp{
-    color: white !important;
-}
-.st-fn{
-    color: white !important;
-}
-.st-bn{
-    color: white;
-}
-.btn-outline-secondary{
-    border-color: #e83e8c;
-    color: #e83e8c;
-}
-.st-at {
-    background-color: #303039;
-}
-.st-df {
-    background-color: #303039;
-}
-footer {
-    font-family: 'Open Sans', sans-serif;
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
+dark_theme = st.sidebar.checkbox("Dark theme")
+if dark_theme:
+    # CSS Theme
+    st.markdown(
+        """
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+    <style>
+    .sidebar .sidebar-content {
+        background-image: linear-gradient(#303039,#303039);
+        color: #303039;
+    }
+    .Widget>label {
+        color: white;
+        background-color: #303039;
+    }
+    .sidebar .sidebar-content h1{
+        color: white;
+    }
+     .reportview-container li{
+        font-size: large;
+    }
+    .reportview-container h3{
+        font-size: large;
+    }
+    .reportview-container dl, .reportview-container ol, .reportview-container p, .reportview-container ul{
+        font-size: large;
+    }
+    .Widget>label{
+        font-size: medium;
+    }
+    [class^="st-b"]  {
+        color: white;
+    }
+    [class^="st-ae st-fh st-fi st-fj st-c5 st-fk st-fa st-fl st-fm"]  {
+        color: white;
+    }
+    [class^="st-ae st-af st-ag st-ah st-fn st-f8 st-fl st-fo st-fp"]  {
+        color: white !important;
+    }
+    .st-bb {
+        background-color: transparent;
+    }
+    .st-cz {
+        fill: white;
+    }
+    .st-dr{
+        fill: white;
+    }
+    .st-ae st-af st-ag st-ah st-fn st-f8 st-fl st-fo st-fp{
+        color: white !important;
+    }
+    .st-fn{
+        color: white !important;
+    }
+     .st-ck{
+        color: white !important;
+    }
+    .st-co{
+        color: white !important;
+    }
+    .st-bn{
+        color: white;
+    }
+    .btn-outline-secondary{
+        border-color: #e83e8c;
+        color: #e83e8c;
+    }
+    .st-at {
+        background-color: #303039;
+    }
+    .st-df {
+        background-color: #303039;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
 
 countries = ['Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Anguilla', 'Antigua and Barbuda', 'Argentina',
              'Armenia', 'Aruba', 'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados',
@@ -253,21 +265,48 @@ countries = ['Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Anguilla
 
 st.title("Viral Infection Analysis System 🦠😷")
 st.sidebar.title("Menu")
-page_select = st.sidebar.radio("Select page to view", ('COVID-19 Cases', 'COVID-19 Forecast', 'Health Advice & Report'))
+page_select = st.sidebar.radio("Select page to view", ('Overview', 'COVID-19 Cases', 'COVID-19 Forecast', 'Health '
+                                                                                                          'Advice & '
+                                                                                                          'Report'))
+# when overview is selected
+if page_select == 'Overview':
+    st.write("## Overview \n > - The Coronavirus disease 2019 (COVID-19) is defined as illness caused by a novel "
+             "coronavirus now called severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2) which was first "
+             "identified amid an outbreak of respiratory illness cases in Wuhan City, "
+             "Hubei Province, China. \n > - As of November 2020, there are **51 million** total cases worldwide and "
+             "**1.2 million** dead from the Coronavirus alone.")
+    st.write("\n")
+    st.write("## The Idea")
+    st.write("> Introducing the Viral Infection Analysis System or ViralNet for short, it aims to combine web scraping "
+             "as well as data forecasting to visualize pandemics and inform the public with the latest news in an "
+             "convenient and interactive dashboard. \n\n > Feel free to explore the app on the menu to your left.")
+    st.write("\n ## Our goal is to: ")
+    col1, col2, col3 = st.beta_columns(3)
+    col1.write("- Display the latest health news and reports")
+    col1.image('system.png', width=150)
+    col2.write("- Create a monitoring system for pandemics like COVID-19")
+    col2.image('strategic-plan.png', width=150)
+    col3.write("- Benchmark the actions taken by governments towards pandemics")
+    col3.image('benchmark.png', width=150)
 
 # when health advice is selected
 if page_select == 'Health Advice & Report':
+    st.write("> This page consists of news and reports regarding COVID-19 extracted from Twitter, you may select the "
+             "data source from the menu")
+
     twitter_user = st.sidebar.selectbox("Select source of health advice and report", ('Ministry of Health Malaysia',
                                                                                       'World Health Organisation',
-                                                                                      'WHO South-East Asia'))
-    st.write(" ## Tweets & reports from the " + twitter_user)
+                                                                                      'Malaysiakini', 'The Star Online'))
+    st.write(" ## News & reports from the " + twitter_user)
 
     if twitter_user == 'Ministry of Health Malaysia':
         twitter_user = 'KKMPutrajaya'
     if twitter_user == 'World Health Organisation':
         twitter_user = 'WHO'
-    if twitter_user == 'WHO South-East Asia':
-        twitter_user = 'WHOSEARO'
+    if twitter_user == 'Malaysiakini':
+        twitter_user = 'malaysiakini'
+    if twitter_user == 'The Star Online':
+        twitter_user = 'staronline'
 
     posts = getTwitterData(twitter_user)
     # st.write(posts)
@@ -285,7 +324,8 @@ if page_select == 'Health Advice & Report':
 # when covid 19 cases is selected
 if page_select == "COVID-19 Cases":
     country_name = st.sidebar.selectbox("Select countries 🌎", countries)
-    st.write(" ## Here are the latest cases of COVID-19 in " + country_name)
+    st.write("> This page will display the latest information about COVID-19 cases worldwide provided by *Our "
+             "World in Data* and *Worldometers*")
 
     data = getData()
     df = data[data['location'] == country_name].iloc[:, 2:9].sort_values(by=['date', 'total_cases'], ascending=False). \
@@ -294,10 +334,12 @@ if page_select == "COVID-19 Cases":
     df['date'] = df['date'].astype('datetime64[ns]')
     df.columns = ['Date', 'Total Cases', 'New Cases', 'Total Deaths', 'New Deaths']
     overview = getReport(country_name)
+    st.write("> You may browse the countries available in the menu and choose what "
+             "statistics you would like to see in the table below")
+    st.write(" ## COVID-19 reports in " + country_name + " as of " + df['Date'][0].strftime("%d %B, %Y"))
 
-    st.write(" ### Updated as of " + df['Date'][0].strftime("%d %B, %Y"))
-    st.write("### **Current reports: ** \n (source: [worldometers.info]("
-             "https://www.worldometers.info/coronavirus/))")
+    # st.write("### **Current reports: ** \n (source: [worldometers.info]("
+    #          "https://www.worldometers.info/coronavirus/))")
     st.write("- ### " + overview['NewCases'].values[0].astype(int).astype(str) + " new cases \n- ### " +
              overview['ActiveCases'].values[0].astype(int).astype(str) + " active cases \n- ### " +
              overview['TotalCases'].values[0].astype(int).astype(str) + " infected in total\n- ### " +
@@ -305,7 +347,9 @@ if page_select == "COVID-19 Cases":
              overview['TotalDeaths'].values[0].astype(int).astype(str) + " deaths in total")
 
     chart_data = df.set_index("Date")
-    cases_type = st.multiselect("Select data to show", ("New Cases", "Total Cases", "New Deaths", "Total Deaths"),
+
+
+    cases_type = st.multiselect("Click below to select data", ("New Cases", "Total Cases", "New Deaths", "Total Deaths"),
                                 ["New Cases"])
     data = df.melt('Date', var_name='Case Type', value_name='Number of Cases')
     available = data['Case Type'].isin(cases_type)
@@ -333,6 +377,10 @@ if page_select == "COVID-19 Cases":
 # when display forecast is selected
 if page_select == "COVID-19 Forecast":
     country_name = st.sidebar.selectbox("Select countries 🌎", countries)
+
+    st.write("> This page will forecast the trend of COVID-19 cases using the ARIMA model, you may select the "
+             "countries on the menu and use the slider to adjust forecast length")
+
     st.write(" ## Here are the forecasts for COVID-19 in " + country_name)
     data = getData()
     df = data[data['location'] == country_name].iloc[:, 2:5].sort_values(by=['date'], ascending=True). \
@@ -341,7 +389,7 @@ if page_select == "COVID-19 Forecast":
     df['date'] = df['date'].astype('datetime64[ns]')
     df.columns = ['Date', 'Total Cases']
 
-    index = st.slider('Select how many days to forecast: ', 1, 365)
+    index = st.slider('Select how many days to forecast : ', 1, 365)
     forecastDf(df, country_name, index)
 
 # when covid 19 cases is selected (data based on worldometers)
